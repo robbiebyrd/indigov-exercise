@@ -140,3 +140,162 @@ modify the `.env` file in the project's root:
 HTTP_PORT=3000
 SKIP_AUTH=true
 ```
+
+## Structure
+
+Nest.js is a wonderful framework which tries to enforce and enhance both common software development practices and
+proven software design patterns. I chose Nest.js because of its strong preference for the Repository pattern. Under the
+hood, I chose the Express.js engine. Nest.js acts as a superb wrapper for Express.js, and also works with other
+frameworks (such as Fastify).
+
+This project uses a Sqlite3 database, but because I chose to use TypeORM as my underlying database engine, it is trivial
+to change. Using the Repository pattern also makes it nearly as easy to change the underlying ORM to, for example,
+Prisma or Sequelize.
+
+Given the limited time necessary to complete the assignment, I tried to lean on the framework's default behaviors and be
+strict and declarative in my initial setup of the repository layer. I knew this would slow me down at first, and
+probably frustrate me, but that attention to detail in the repository layer would save me time later.
+
+### `Auth` Module
+
+I first used Nest.js' CLI [generate command](https://docs.nestjs.com/cli/usages#nest-generate) to create an
+authentication module `Auth` to handle user logins and endpoint authentication.
+
+This module would need a `@Controller` to route incoming requsts, a `@Service` to handle the business logic and return
+results for requests, and a `@Guard` component to provide an interface for other controllers to protect routes.
+
+We also needed a custom `@Decorator` to skip auth for some public endpoints.,
+
+### `User` Module
+
+I createad a `User` module to handle login information. This is easy using Nest.js CLI' auth generate. I added a `role`
+attribute for each user, and masked returns so that only a username could be retrieved; this keeps password information
+contained within the `User` service.
+
+### `Constituent` Module
+
+I began to create the `Constituent` module. First, I defined an `Entity`, or ORM mapping for a constituent record. Next,
+I created a DTO for both creating and updating a record, and added validation to these fields.
+
+I create a TypeORM configuration for the `Entity` I created, and injected into the `app.module.ts` file at the root.
+This will ensure the module is injected appropriately when a request is accepted.
+
+Next, I created a generic Service that would contain the business logic of responding to requests. I made a few standard
+CRUD functions, and ensured that return types were appropriate; while most functions will return an array
+of `Constituent` entities, some requests may call for CSV data in string format.
+
+To enable the conversion of CSV data to Constituent Records (and vice versa), I opted to use string parsing instead of a
+dedicated CSV library, to avoid the extra step of converting a `Constituent` entity to a base object and back.
+
+The Constituent controller was the last piece of this package. It handles all incoming requests to the `/constituents` endpoint. Each method is annoted for OpenAPI.
+
+Finally, I imported the modules I had created into the appropriate place in the `app.module.ts` file and began testing.
+
+## Testing
+
+I first created a new record using dummy information by sending a `POST` request to the `/constiuents` endpoint.
+
+```
+POST /constituents HTTP/1.1
+Content-Type: application/json; charset=utf-8
+Host: localhost:3000
+Connection: close
+User-Agent: RapidAPI/4.2.0 (Macintosh; OS X/14.4.0) GCDHTTPRequest
+Content-Length: 147
+
+{"email":"me@robbiebyrd.com","firstName":"Robbie","lastName":"Byrd","address":"123 Main Street","city":"Austin","state":"Texas","zip":"78701"}
+```
+
+Then, I called the `/constiuents` endpoint with a `GET` request to see if the record had been added.
+
+```
+GET /constituents HTTP/1.1
+
+---
+
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+
+[{"email":"me@robbiebyrd.com","firstName":"Robbie","lastName":"Byrd","address":"123 Main Street","address2":null,"city":"Austin","state":"Texas","zip":"78701","signup":"2024-02-13T10:35:59.000Z"}]```
+```
+
+Success! Next, I attempted to update my record.
+
+```
+
+PUT /constituents/me@robbiebyrd.com HTTP/1.1
+Content-Type: application/json; charset=utf-8
+
+{"firstName":"Robert"}
+
+---
+
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+
+[{"email":"me@robbiebyrd.com","firstName":"Robert","lastName":"Byrd","address":"123 Main Street","address2":null,"city":"Austin","state":"Texas","zip":"78701","signup":"2024-02-13T10:35:59.000Z"}]```
+
+
+```
+Success again!
+
+Finally, I deleted the record.
+
+```
+DELETE /constituents/me@robbiebyrd.com HTTP/1.1
+
+[{"email":"me@robbiebyrd.com","firstName":"Robert","lastName":"Byrd","address":"123 Main Street","address2":null,"city":"Austin","state":"Texas","zip":"78701","signup":"2024-02-13T10:35:59.000Z"}]```
+
+---
+
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+
+{"message":"Deleted"}
+```
+
+I tried the CSV functionality by uploading the mock_data.csv file (in the root of this repo) to the `/constituents/upload` endpoint. The `POST` endpoint accepts a `multipart/form-data` payload, with the file contents in a field named `file`. 
+
+```
+POST /constituents/upload/ HTTP/1.1
+Content-Type: multipart/form-data; charset=utf-8;
+Content-Disposition: form-data; name="file"; filename="mock_data.csv"
+Content-Type: text/csv
+
+email,firstName,lastName,address,address2,city,state,zip
+dmcwhinney0@pinterest.com,Demetris,Mcwhinney,730 Utah Road,Apt 1615,Hialeah,Florida,33013
+...
+
+---
+
+HTTP/1.1 201 Created
+X-Powered-By: Express
+Date: Tue, 13 Feb 2024 03:21:18 GMT
+Connection: close
+Content-Length: 0
+
+
+```
+
+I checked by calling a `GET` on the `/constiutents` endpoint and received 100 rows, the same number in the spreadsheet.
+
+Next, I tried getting the results as a CSV format. I made the same `GET` request on the `/constiutents` endpoint, but added the query string `?format=csv`.
+
+```
+GET /constituents?format=csv HTTP/1.1
+Host: localhost:3000
+Connection: close
+User-Agent: RapidAPI/4.2.0 (Macintosh; OS X/14.4.0) GCDHTTPRequest
+
+---
+
+HTTP/1.1 200 OK
+Content-Type: text/csv; charset=utf-8
+
+email,firstName,lastName,address,address2,city,state,zip,signup
+"dmcwhinney0@pinterest.com","Demetris","Mcwhinney"",730 Utah Road","Apt 1615","Hialeah","Florida","33013"
+
+...
+```
+
+Success!
