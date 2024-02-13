@@ -1,4 +1,4 @@
-# Constituents Service
+**# Constituents Service
 
 An application that retrieves and stores contact information of constituents.
 
@@ -187,7 +187,8 @@ of `Constituent` entities, some requests may call for CSV data in string format.
 To enable the conversion of CSV data to Constituent Records (and vice versa), I opted to use string parsing instead of a
 dedicated CSV library, to avoid the extra step of converting a `Constituent` entity to a base object and back.
 
-The Constituent controller was the last piece of this package. It handles all incoming requests to the `/constituents` endpoint. Each method is annoted for OpenAPI.
+The Constituent controller was the last piece of this package. It handles all incoming requests to the `/constituents`
+endpoint. Each method is annoted for OpenAPI.
 
 Finally, I imported the modules I had created into the appropriate place in the `app.module.ts` file and began testing.
 
@@ -237,6 +238,7 @@ Content-Type: application/json; charset=utf-8
 
 
 ```
+
 Success again!
 
 Finally, I deleted the record.
@@ -254,7 +256,9 @@ Content-Type: application/json; charset=utf-8
 {"message":"Deleted"}
 ```
 
-I tried the CSV functionality by uploading the mock_data.csv file (in the root of this repo) to the `/constituents/upload` endpoint. The `POST` endpoint accepts a `multipart/form-data` payload, with the file contents in a field named `file`. 
+I tried the CSV functionality by uploading the mock_data.csv file (in the root of this repo) to
+the `/constituents/upload` endpoint. The `POST` endpoint accepts a `multipart/form-data` payload, with the file contents
+in a field named `file`.
 
 ```
 POST /constituents/upload/ HTTP/1.1
@@ -279,7 +283,8 @@ Content-Length: 0
 
 I checked by calling a `GET` on the `/constiutents` endpoint and received 100 rows, the same number in the spreadsheet.
 
-Next, I tried getting the results as a CSV format. I made the same `GET` request on the `/constiutents` endpoint, but added the query string `?format=csv`.
+Next, I tried getting the results as a CSV format. I made the same `GET` request on the `/constiutents` endpoint, but
+added the query string `?format=csv`.
 
 ```
 GET /constituents?format=csv HTTP/1.1
@@ -299,3 +304,41 @@ email,firstName,lastName,address,address2,city,state,zip,signup
 ```
 
 Success!
+
+### Caveats
+
+#### Duplicate records on update of email address
+
+When Attempting to use a UpdateConstituentDto to update a user's email address, the operation succeeds; however, the
+record isn't actually update, but rather a new record is created. This is a failure of using the email as
+the `@PrimaryColumn` as a shortcut. Normally, a record would have a UUID or unique integer as its primary key, but doing
+so adds an additional level of effort to the Constituent Service. I would change this in the future by still using the
+same DTO, but doing a lookup first in the service:
+
+```typescript
+        const constituent = await this.constituentRepository.find({
+    where: {email: email},
+});
+if (!constituent) {
+    const constituent = this.constituentRepository.create(constituentDto);
+    return await this.constituentRepository.save(constituent);
+} else {
+    await this.constituentRepository.update(constituent);
+}
+
+```
+
+#### `?format=csv|json` could be app-wide
+
+I have hard-coded into the method `GET` for route `/constituents` with a `@QueryParam` called `format`. I pass that
+parameter down from the controller to the service (a.k.a. prop drilling) and use logic within the service to convert the
+array of `Constituent` entities into CSV. This is not great, because it would require a lot of duplicated code
+throughout to implement CSV exports to other types. It would be nice to use a `ClassSerializerInterceptor` to convert
+the output type, or move the CSV methods from the service and into an output class on the `Constituent` entity.
+
+#### CSV Output is not a file
+
+One of the nice things about Nest.js is that it abstracts much of underlying Node.js frameworks, like Express, and makes
+their application uniform. However, when Nest.js is missing a feature, it falls on the developer to short-circuit
+Nest.js and invoke the underlying framework. For time reasons, I chose not to modify the underlying
+Express.js `Response` object from Nest.js and hoped that my jurors would have pity on me.
