@@ -1,3 +1,5 @@
+import * as process from "process";
+
 export const jwtConstants = {
-    secret: 'SuperSecretJWTSigningKey.',
+    secret: process.env.JWT_KEY,
 };
