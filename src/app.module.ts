@@ -8,9 +8,11 @@ import {AuthModule} from './auth/auth.module';
 import {Constituent} from './constituent/constituent.entity';
 import {ConstituentModule} from './constituent/constituent.module';
 import {UsersModule} from './users/users.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
     imports: [
+        ConfigModule.forRoot(),
         TypeOrmModule.forRoot({
             type: 'sqlite',
             database: 'db/sql',

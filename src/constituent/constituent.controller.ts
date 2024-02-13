@@ -11,9 +11,10 @@ import {
     UploadedFile,
     UseInterceptors
 } from '@nestjs/common';
+import {ApiConsumes, ApiBody} from "@nestjs/swagger";
 
 import {FileInterceptor} from '@nestjs/platform-express';
-import {ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags, ApiProperty} from '@nestjs/swagger';
+import {ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags} from '@nestjs/swagger';
 import {ApiOkResponse} from "@nestjs/swagger/dist/decorators/api-response.decorator";
 import {Express} from 'express';
 import {SkipAuth} from '../auth/decorators/public.decorator';
@@ -74,15 +75,26 @@ export class ConstituentController {
 
     @Delete(':email')
     @ApiOperation({summary: 'Delete an existing constituent record.'})
-    @ApiOkResponse({description: '{ messsage: "deleted"}'})
+    @ApiOkResponse({description: '{ message: "deleted"}'})
     remove(@Param('email') email: string) {
         return this.constituentService.delete(email);
     }
 
-    @SkipAuth()
     @ApiOperation({summary: 'Create many constituent records from a CSV file.'})
     @ApiOkResponse({description: 'The number of records processed.'})
     @UseInterceptors(FileInterceptor('file'))
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                file: {
+                    type: 'string',
+                    format: 'binary',
+                },
+            },
+        },
+    })
     @Post('upload')
     async uploadFile(@UploadedFile() file: Express.Multer.File): Promise<number> {
         if (!file) {
